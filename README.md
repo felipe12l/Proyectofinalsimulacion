@@ -96,11 +96,12 @@ especificación; `threat_count` acepta 5, 10 o 20.
 | Serverless / JSON | `run_simulation()` no guarda estado entre invocaciones; `lambda_handler()` valida/decodifica el evento y propaga errores de entrada claramente. |
 | Aplicación web | `web/index.html` contiene el formulario y los paneles; `web/app.js` representa métricas, FSM y amenazas; `web_server.py` sirve la interfaz, limita solicitudes y conecta `/api/simulate` con el mismo motor Python; `render.yaml` configura su publicación. |
 
-En modo `det`, el entorno se fija sin viento, oleaje ni clutter, las variables
-aleatorias usan sus puntos medios y las probabilidades se resuelven por su valor
-esperado (`p >= 0.5`). En modo `est`, las variaciones y eventos probabilísticos
-usan el generador local inicializado con `seed`; por ello, el mismo payload produce
-el mismo resultado sin compartir estado global.
+En modo `det`, el entorno se fija sin viento, oleaje ni clutter y los parámetros
+aleatorios usan sus puntos medios. La detección usa su valor esperado, pero Pk se
+muestrea con la semilla para que pueda haber neutralizaciones fallidas; el mismo
+payload sigue produciendo el mismo resultado. En modo `est`, las variaciones y
+eventos probabilísticos usan el generador local inicializado con `seed`, sin
+compartir estado global.
 
 ## Límites del modelo
 

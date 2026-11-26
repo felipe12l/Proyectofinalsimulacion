@@ -114,6 +114,23 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(result["total_runs"], 300)
         self.assertEqual(result["interval_method"], "Wilson")
 
+    def test_seeded_kill_probability_allows_reproducible_failures_in_det_mode(self):
+        payload = {
+            "mode": "det",
+            "seed": 1,
+            "threat_count": 20,
+            "salvo_interval_s": 0.5,
+            "fire_control_latency_s": 3,
+            "interceptor_count": 8,
+            "kill_probability": 0.6,
+            "duration_s": 90,
+            "dt_s": 0.05,
+        }
+        first = run_simulation(payload)
+        second = run_simulation(payload)
+        self.assertGreater(first["counts"]["failed_detonations"], 0)
+        self.assertEqual(first, second)
+
 
 if __name__ == "__main__":
     unittest.main()

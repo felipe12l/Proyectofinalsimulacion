@@ -222,6 +222,8 @@ class NavalDefenseSimulation:
         self.impact_count = 0
         self.harmless_count = 0
         self.intercept_attempts = 0
+        self.interceptor_misses = 0
+        self.failed_detonations = 0
         self.max_queue_length = 0
         self.wait_times: list[float] = []
 
@@ -641,6 +643,7 @@ class NavalDefenseSimulation:
                     and interceptor.previous_distance_m < 1000.0
                 )
             ):
+                self.interceptor_misses += 1
                 target.state = ThreatState.EVALUATED
                 target.evaluated_at_s = self.time_s
                 self.pending_fire.add(target.identifier)
@@ -650,12 +653,14 @@ class NavalDefenseSimulation:
         self.interceptors = survivors
 
     def _resolve_detonation(self, target: Threat) -> None:
-        if self._chance(self.config.kill_probability):
+        # Pk se muestrea con la semilla fija incluso en modo det, para admitir fallos reproducibles.
+        if self.rng.random() < self.config.kill_probability:
             target.state = ThreatState.NEUTRALIZED
             self.neutralized_count += 1
             self.pending_fire.discard(target.identifier)
         else:
             # Fallo de espoleta/intercepción: S3->S2 permite reevaluación y reenganche.
+            self.failed_detonations += 1
             target.state = ThreatState.EVALUATED
             target.evaluated_at_s = self.time_s
             self.pending_fire.add(target.identifier)
@@ -736,6 +741,8 @@ class NavalDefenseSimulation:
                 "impacts": self.impact_count,
                 "harmless": self.harmless_count,
                 "intercept_attempts": self.intercept_attempts,
+                "interceptor_misses": self.interceptor_misses,
+                "failed_detonations": self.failed_detonations,
                 "interceptors_remaining": self.remaining_interceptors,
                 "pending_fire_queue": len(self.pending_fire),
                 "max_fire_queue": self.max_queue_length,

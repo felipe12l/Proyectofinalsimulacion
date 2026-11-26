@@ -26,6 +26,8 @@ const metricDefinitions = [
   ["neutralized", "Neutralizadas", "integer"],
   ["impacts", "Impactos", "integer"],
   ["harmless", "Inocuas", "integer"],
+  ["interceptor_misses", "Interceptores que fallaron", "integer"],
+  ["failed_detonations", "Fallos Pₖ", "integer"],
   ["throughput_per_s", "Throughput / s", "decimal"],
   ["average_wait_time_s", "Espera media (s)", "decimal"],
   ["max_fire_queue", "Cola máxima", "integer"],
