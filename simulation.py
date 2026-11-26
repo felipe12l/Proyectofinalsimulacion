@@ -412,18 +412,28 @@ class NavalDefenseSimulation:
         return self._chance(probability)
 
     def _project_impact(self, threat: Threat) -> tuple[float, float]:
-        # S1->S2 proyecta el vuelo completo con el mismo arrastre y control de perfil.
+        # Predicción más gruesa que dt: se refina cerca del impacto sin cambiar la física integrada.
         position = threat.position.copy()
         velocity = threat.velocity.copy()
-        forecast_step = 0.05
-        forecast_steps = math.ceil(300.0 / forecast_step)
-        for _ in range(forecast_steps):
+        elapsed = 0.0
+        while elapsed < 300.0:
+            forecast_step = (
+                0.25
+                if position[2] > 250.0
+                or (
+                    threat.profile == AttackProfile.SEA_SKIMMING
+                    and position[2] > 20.0
+                )
+                else 0.05
+            )
+            forecast_step = min(forecast_step, 300.0 - elapsed)
             acceleration = self._acceleration(threat, position, velocity)
             for axis in range(3):
                 velocity[axis] += acceleration[axis] * forecast_step
                 position[axis] += velocity[axis] * forecast_step
             if position[2] <= 0.0:
                 return position[0], position[1]
+            elapsed += forecast_step
         return position[0], position[1]
 
     def _evaluate(self, threat: Threat) -> None:
@@ -508,12 +518,14 @@ class NavalDefenseSimulation:
         velocity: list[float],
     ) -> list[float]:
         # Arrastre cuadrático respecto al viento, gravedad y control de vuelo rasante.
-        relative_velocity = [
-            velocity[0] - self.environment.wind_x_mps,
-            velocity[1] - self.environment.wind_y_mps,
-            velocity[2],
-        ]
-        relative_speed = math.sqrt(sum(component * component for component in relative_velocity))
+        relative_x = velocity[0] - self.environment.wind_x_mps
+        relative_y = velocity[1] - self.environment.wind_y_mps
+        relative_z = velocity[2]
+        relative_speed = math.sqrt(
+            relative_x * relative_x
+            + relative_y * relative_y
+            + relative_z * relative_z
+        )
         drag_scale = (
             -0.5
             * self.config.air_density_kg_m3
@@ -522,7 +534,9 @@ class NavalDefenseSimulation:
             * relative_speed
             / threat.mass_kg
         )
-        acceleration = [drag_scale * component for component in relative_velocity]
+        acceleration_x = drag_scale * relative_x
+        acceleration_y = drag_scale * relative_y
+        acceleration_z = drag_scale * relative_z
         if threat.profile == AttackProfile.SEA_SKIMMING:
             remaining = math.hypot(
                 threat.target_x_m - position[0],
@@ -538,14 +552,14 @@ class NavalDefenseSimulation:
             terminal_range = horizontal_speed * max(0.0, fall_time)
             if remaining > terminal_range and horizontal_speed > 50.0:
                 # Control vertical sencillo que conserva la altura de vuelo rasante.
-                acceleration[2] += (
+                acceleration_z += (
                     GRAVITY_MPS2 - 0.8 * (position[2] - 80.0) - 1.5 * velocity[2]
                 )
             else:
-                acceleration[2] -= GRAVITY_MPS2
+                acceleration_z -= GRAVITY_MPS2
         else:
-            acceleration[2] -= GRAVITY_MPS2
-        return acceleration
+            acceleration_z -= GRAVITY_MPS2
+        return [acceleration_x, acceleration_y, acceleration_z]
 
     def _integrate_threat(self, threat: Threat, dt: float) -> None:
         # Integración explícita de Euler: x(k+1)=f(x(k),u(k),w(k)).
