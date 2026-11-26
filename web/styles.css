@@ -313,6 +313,20 @@ summary {
   opacity: 0.65;
 }
 
+.mc-progress {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.mc-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
 .results {
   min-width: 0;
 }

@@ -96,6 +96,16 @@ class SimulationHandler(BaseHTTPRequestHandler):
         if not SIMULATION_SLOTS.acquire(blocking=False):
             self._send_json(503, {"error": "El simulador está ocupado; inténtalo de nuevo en unos segundos."})
             return
+        stream_progress = (
+            route == "/api/monte-carlo"
+            and "application/x-ndjson" in self.headers.get("Accept", "").lower()
+        )
+        if stream_progress:
+            try:
+                self._stream_monte_carlo(payload, runs)
+            finally:
+                SIMULATION_SLOTS.release()
+            return
         try:
             result = (
                 run_monte_carlo(payload)
@@ -108,6 +118,50 @@ class SimulationHandler(BaseHTTPRequestHandler):
         finally:
             SIMULATION_SLOTS.release()
         self._send_json(200, result)
+
+    def _stream_monte_carlo(self, payload: dict[str, object], runs: int) -> None:
+        self._send_ndjson_headers()
+        total_runs = runs * len(MONTE_CARLO_THREAT_COUNTS)
+        self._send_ndjson(
+            {
+                "type": "progress",
+                "completed": 0,
+                "total": total_runs,
+                "threat_count": None,
+            }
+        )
+        try:
+            result = run_monte_carlo(
+                payload,
+                progress_callback=lambda completed, total, threat_count: self._send_ndjson(
+                    {
+                        "type": "progress",
+                        "completed": completed,
+                        "total": total,
+                        "threat_count": threat_count,
+                    }
+                ),
+            )
+        except ValueError as error:
+            self._send_ndjson({"type": "error", "error": str(error)})
+            return
+        self._send_ndjson({"type": "result", "result": result})
+
+    def _send_ndjson_headers(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+
+    def _send_ndjson(self, payload: dict[str, object]) -> None:
+        content = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        self.wfile.write(content + b"\n")
+        self.wfile.flush()
 
     def _send_json(self, status: int, payload: dict[str, object]) -> None:
         content = json.dumps(

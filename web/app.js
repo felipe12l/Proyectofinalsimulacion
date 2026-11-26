@@ -3,6 +3,9 @@
 const form = document.querySelector("#simulation-form");
 const runButton = document.querySelector("#run-button");
 const monteCarloButton = document.querySelector("#run-monte-carlo");
+const monteCarloProgress = document.querySelector("#mc-progress");
+const monteCarloProgressBar = document.querySelector("#mc-progress-bar");
+const monteCarloProgressText = document.querySelector("#mc-progress-text");
 const emptyState = document.querySelector("#empty-state");
 const resultView = document.querySelector("#result-view");
 const monteCarloView = document.querySelector("#mc-result");
@@ -296,6 +299,59 @@ function renderMonteCarlo(result) {
   drawMonteCarloChart(result.groups);
 }
 
+function updateMonteCarloProgress(event) {
+  monteCarloProgress.hidden = false;
+  monteCarloProgressBar.max = event.total;
+  monteCarloProgressBar.value = event.completed;
+  const group = event.threat_count
+    ? ` · salva de ${event.threat_count} amenazas`
+    : "";
+  monteCarloProgressText.textContent =
+    `${formatNumber(event.completed, 0)} / ${formatNumber(event.total, 0)} corridas${group}`;
+}
+
+async function readMonteCarloResponse(response) {
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error ?? "No se pudo ejecutar Monte Carlo.");
+  }
+
+  if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
+    return response.json();
+  }
+  if (!response.body) {
+    throw new Error("El navegador no pudo leer el progreso de Monte Carlo.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+  const processLine = (line) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "progress") {
+      updateMonteCarloProgress(event);
+    } else if (event.type === "error") {
+      throw new Error(event.error);
+    } else if (event.type === "result") {
+      result = event.result;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop();
+    for (const line of lines) processLine(line);
+    if (done) break;
+  }
+  if (buffer.trim()) processLine(buffer);
+  if (!result) throw new Error("La conexión terminó antes de recibir los resultados.");
+  return result;
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!form.reportValidity()) return;
@@ -329,6 +385,11 @@ monteCarloButton.addEventListener("click", async () => {
   runButton.disabled = true;
   monteCarloButton.disabled = true;
   const runs = Number.parseInt(runsInput.value, 10);
+  const totalRuns = runs * 3;
+  monteCarloProgress.hidden = false;
+  monteCarloProgressBar.max = totalRuns;
+  monteCarloProgressBar.value = 0;
+  monteCarloProgressText.textContent = `0 / ${formatNumber(totalRuns, 0)} corridas · preparando…`;
   monteCarloButton.textContent = `Ejecutando ${formatNumber(runs * 3, 0)} corridas…`;
   try {
     const payload = readPayload();
@@ -336,12 +397,17 @@ monteCarloButton.addEventListener("click", async () => {
     payload.runs = runs;
     const response = await fetch("/api/monte-carlo", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/x-ndjson, application/json",
+      },
       body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? "No se pudo ejecutar Monte Carlo.");
+    const result = await readMonteCarloResponse(response);
     renderMonteCarlo(result);
+    monteCarloProgressBar.value = totalRuns;
+    monteCarloProgressText.textContent =
+      `${formatNumber(totalRuns, 0)} / ${formatNumber(totalRuns, 0)} corridas · completado`;
   } catch (error) {
     errorMessage.textContent = error instanceof Error ? error.message : "Error inesperado.";
     errorMessage.hidden = false;

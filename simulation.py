@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass, replace
 from enum import Enum
 from statistics import mean
-from typing import Any
+from typing import Any, Callable
 
 
 GRAVITY_MPS2 = 9.81
@@ -843,11 +843,16 @@ def wilson_confidence_interval(successes: int, trials: int) -> tuple[float, floa
     return max(0.0, center - margin), min(1.0, center + margin)
 
 
-def run_monte_carlo(payload: dict[str, Any]) -> dict[str, Any]:
+def run_monte_carlo(
+    payload: dict[str, Any],
+    progress_callback: Callable[[int, int, int], None] | None = None,
+) -> dict[str, Any]:
     """Estima supervivencia del buque para salvas de 5, 10 y 20 amenazas."""
 
     base_config, runs = prepare_monte_carlo(payload)
     groups = []
+    completed_runs = 0
+    total_runs = runs * len(MONTE_CARLO_THREAT_COUNTS)
     for threat_count in MONTE_CARLO_THREAT_COUNTS:
         surviving_runs = 0
         runs_with_impacts = 0
@@ -866,6 +871,9 @@ def run_monte_carlo(payload: dict[str, Any]) -> dict[str, Any]:
                 surviving_runs += 1
             else:
                 runs_with_impacts += 1
+            completed_runs += 1
+            if progress_callback is not None:
+                progress_callback(completed_runs, total_runs, threat_count)
 
         lower, upper = wilson_confidence_interval(surviving_runs, runs)
         survival_rate = surviving_runs / runs

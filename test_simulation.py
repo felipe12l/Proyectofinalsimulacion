@@ -77,6 +77,7 @@ class SimulationTests(unittest.TestCase):
         self.assertGreaterEqual(upper, 0.5)
 
     def test_monte_carlo_runs_at_least_100_replications_for_each_salvo(self):
+        progress = []
         result = run_monte_carlo(
             {
                 "runs": 100,
@@ -85,9 +86,15 @@ class SimulationTests(unittest.TestCase):
                 "duration_s": 9.5,
                 "dt_s": 0.05,
                 "salvo_interval_s": 0.5,
-            }
+            },
+            progress_callback=lambda completed, total, threat_count: progress.append(
+                (completed, total, threat_count)
+            ),
         )
         self.assertEqual(result["total_runs"], 300)
+        self.assertEqual(len(progress), 300)
+        self.assertEqual(progress[0], (1, 300, 5))
+        self.assertEqual(progress[-1], (300, 300, 20))
         self.assertEqual(
             [group["threat_count"] for group in result["groups"]],
             [5, 10, 20],
