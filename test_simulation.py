@@ -2,6 +2,8 @@ import json
 import unittest
 
 from simulation import (
+    NavalDefenseSimulation,
+    SimulationConfig,
     lambda_handler,
     run_monte_carlo,
     run_simulation,
@@ -29,6 +31,15 @@ class SimulationTests(unittest.TestCase):
     def test_rejects_out_of_range_integration_step(self):
         with self.assertRaisesRegex(ValueError, "dt_s"):
             run_simulation({"dt_s": 0.1})
+
+    def test_detection_probability_can_be_reduced_to_zero(self):
+        simulation = NavalDefenseSimulation(
+            SimulationConfig.from_payload({"detection_probability": 0.0})
+        )
+        threat = simulation._new_threat(1)
+        self.assertFalse(simulation._detection_chance(threat, clutter=0))
+        with self.assertRaisesRegex(ValueError, "detection_probability"):
+            SimulationConfig.from_payload({"detection_probability": -0.01})
 
     def test_result_exposes_fsm_states_and_performance_indicators(self):
         result = run_simulation(

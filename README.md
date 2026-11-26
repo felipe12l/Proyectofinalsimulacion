@@ -78,7 +78,8 @@ result = run_simulation({
 
 Todos los parámetros omitidos toman los valores predeterminados de
 `SimulationConfig`. Los valores suministrados se validan contra los rangos de la
-especificación; `threat_count` acepta 5, 10 o 20.
+especificación; `threat_count` acepta 5, 10 o 20. Para estudiar radares degradados,
+`detection_probability` admite 0–1; un valor de 0 desactiva detecciones.
 
 ## Dónde se aplica cada concepto
 

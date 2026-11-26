@@ -99,7 +99,7 @@ class SimulationConfig:
         _bounded("radar_range_km", config.radar_range_km, 20.0, 60.0)
         _bounded("sweep_period_s", config.sweep_period_s, 0.5, 4.0)
         _bounded("tracking_capacity", config.tracking_capacity, 8, 32, integer=True)
-        _bounded("detection_probability", config.detection_probability, 0.7, 1.0)
+        _bounded("detection_probability", config.detection_probability, 0.0, 1.0)
         _bounded("tti_threshold_s", config.tti_threshold_s, 3.0, 15.0)
         _bounded("fire_control_latency_s", config.fire_control_latency_s, 0.5, 3.0)
         _bounded("interceptor_count", config.interceptor_count, 8, 40, integer=True)
@@ -407,7 +407,7 @@ class NavalDefenseSimulation:
         clutter_factor = math.exp(-0.15 * clutter)
         probability = min(
             1.0,
-            max(0.05, self.config.detection_probability * range_factor * clutter_factor),
+            self.config.detection_probability * range_factor * clutter_factor,
         )
         return self._chance(probability)
 
